@@ -317,18 +317,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return text;
     };
-    let parsed;
-    try {
-      const buf = await fetchWithProgress(url, label);
-      parsed = parseAozoraHtml(decode(buf));
-    } catch (e1) {
-      setStatus(`${label} プロキシ経由で再試行...`);
-      const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-      const buf = await fetchWithProgress(proxied, label);
-      parsed = parseAozoraHtml(decode(buf));
+
+    // aozora.gr.jpはCORSを許可しないので、直接fetchはスキップしてプロキシ経由のみ使う
+    // 複数プロキシをフォールバックで順に試す
+    const proxies = [
+      { name: 'corsproxy.io',  build: u => 'https://corsproxy.io/?url=' + encodeURIComponent(u) },
+      { name: 'codetabs',      build: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u) },
+      { name: 'allorigins',    build: u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u) },
+    ];
+
+    let lastErr = null;
+    for (let i = 0; i < proxies.length; i++) {
+      const p = proxies[i];
+      try {
+        if (i > 0) setStatus(`${label} 別経路で再試行 (${p.name})...`);
+        const buf = await fetchWithProgress(p.build(url), label);
+        const parsed = parseAozoraHtml(decode(buf));
+        try { localStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch (e) {}
+        return parsed;
+      } catch (e) {
+        lastErr = e;
+      }
     }
-    try { localStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch (e) {}
-    return parsed;
+    throw lastErr || new Error('取得経路が全て失敗しました');
   }
 
   // ══ クイックパネル ══
