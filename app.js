@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const fontSizeVal  = $('fontSizeVal');
   const goReadBtn    = $('goReadBtn');
   const statusEl     = $('settingsStatus');
+  const loadProgress = $('loadProgress');
+  const loadProgressFill = $('loadProgressFill');
 
   // リーダー画面要素
   const backBtn      = $('backBtn');
@@ -24,9 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const readerTitle  = $('readerTitle');
   const readerInfo   = $('readerInfo');
   const wordEl       = $('word');
-  const progressBar  = $('progressBar');
+  const seekBar      = $('seekBar');
   const playBtn      = $('playBtn');
   const back3Btn     = $('back3Btn');
+  const prevBtn      = $('prevBtn');
+  const nextBtn      = $('nextBtn');
   const finishMsg    = $('finishMsg');
 
   // クイックパネル
@@ -43,11 +47,31 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentUnit = 'word';
   let currentText = '';
   let currentTitle = '';
+  let wasPlayingBeforeSeek = false;
   const CACHE_PREFIX = 'aozora_cache_v1:';
 
   function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
 
-  // ── プリセットoption生成 ──
+  // ── 速度変換: wps（word per sec）⇔ ms ──
+  function wpsToMs(wps) { return Math.round(1000 / Math.max(1, wps)); }
+
+  // ── テーマ ──
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('theme', theme); } catch (e) {}
+    document.querySelectorAll('[data-theme]').forEach(b => {
+      if (b.tagName === 'BUTTON') b.classList.toggle('active', b.dataset.theme === theme);
+    });
+  }
+  // 初期テーマ復元
+  let initialTheme = 'dark';
+  try {
+    const saved = localStorage.getItem('theme');
+    if (saved && ['light', 'sepia', 'dark'].includes(saved)) initialTheme = saved;
+  } catch (e) {}
+  applyTheme(initialTheme);
+
+  // ── プリセット生成 ──
   if (typeof AOZORA_PRESETS === 'undefined' || !AOZORA_PRESETS.length) {
     setStatus('プリセットの読み込みに失敗しました');
   } else {
@@ -65,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return Array.from(text).filter(c => c.trim() !== '');
     }
     if (mode === 'phrase') {
-      // 句読点で分割（lookbehind未対応の古いブラウザでも動く形に）
       const out = [];
       let buf = '';
       for (const ch of text) {
@@ -92,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(text);
   }
 
-  // 位置保持用ヘルパ
   function tokenIdxToCharPos(i) {
     let pos = 0;
     for (let k = 0; k < i && k < tokens.length; k++) pos += tokens[k].length;
@@ -107,13 +129,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.max(0, newTokens.length - 1);
   }
 
-  // ── テキスト読み込み（位置リセット） ──
   function loadText(text, title) {
     currentText = text;
     currentTitle = title || '';
     tokens = tokenize(text, currentUnit);
     idx = 0;
     readerTitle.textContent = currentTitle;
+    seekBar.max = Math.max(0, tokens.length - 1);
+    seekBar.value = 0;
     setStatus(`「${currentTitle}」を読み込みました（${tokens.length} ${currentUnit === 'phrase' ? '文' : '語'}）`);
     updateGoBtn();
   }
@@ -125,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
       currentUnit = newUnit;
       tokens = tokenize(currentText, currentUnit);
       idx = charPosToTokenIdx(charPos, tokens);
+      seekBar.max = Math.max(0, tokens.length - 1);
+      seekBar.value = idx;
     } else {
       currentUnit = newUnit;
     }
@@ -134,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function syncUnitButtons() {
-    document.querySelectorAll('.unit-btn').forEach(b => {
+    document.querySelectorAll('[data-unit]').forEach(b => {
       b.classList.toggle('active', b.dataset.unit === currentUnit);
     });
   }
@@ -149,7 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ── 画面切替 ──
   function showReader() {
     if (!tokens.length) { setStatus('テキストが未読み込み'); return; }
     settingsScreen.classList.remove('active');
@@ -171,21 +195,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const done = idx >= tokens.length;
     wordEl.style.display    = done ? 'none' : '';
     finishMsg.style.display = done ? 'block' : 'none';
+    seekBar.value = Math.min(idx, tokens.length - 1);
     if (done) {
-      progressBar.style.width = '100%';
       readerInfo.textContent = `${tokens.length}/${tokens.length}`;
       return;
     }
     wordEl.textContent = tokens[idx];
     readerInfo.textContent = `${idx + 1}/${tokens.length}`;
-    progressBar.style.width = ((idx + 1) / tokens.length * 100) + '%';
   }
 
+  // idx = 現在表示している語のインデックス
   function tick() {
     if (idx >= tokens.length) { stop(); return; }
     updateView();
-    idx++;
-    timer = setTimeout(tick, parseInt(speedRange.value, 10));
+    timer = setTimeout(() => {
+      idx++;
+      tick();
+    }, wpsToMs(parseInt(speedRange.value, 10)));
   }
   function play() {
     if (!tokens.length) return;
@@ -203,6 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function stop() { pause(); updateView(); }
 
+  // 移動ヘルパ（再生中なら一時停止→移動→再開）
+  function moveTo(newIdx) {
+    const wp = playing; pause();
+    idx = Math.max(0, Math.min(tokens.length, newIdx));
+    updateView();
+    if (wp && idx < tokens.length) play();
+  }
+
   // ── 青空文庫パース・取得 ──
   function parseAozoraHtml(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -217,16 +251,63 @@ document.addEventListener('DOMContentLoaded', () => {
     return { title, text: text.trim() };
   }
 
-  async function fetchAozora(url) {
+  function showProgress(determinate, percent) {
+    loadProgress.classList.add('active');
+    if (determinate) {
+      loadProgress.classList.remove('indeterminate');
+      loadProgressFill.style.width = percent + '%';
+    } else {
+      loadProgress.classList.add('indeterminate');
+      loadProgressFill.style.width = '30%';
+    }
+  }
+  function hideProgress() {
+    loadProgress.classList.remove('active', 'indeterminate');
+    loadProgressFill.style.width = '0%';
+  }
+
+  // 進捗付きfetch
+  async function fetchWithProgress(url, label) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const total = +res.headers.get('Content-Length') || 0;
+    if (!res.body || !res.body.getReader) {
+      // ストリーム未対応: 一括取得
+      showProgress(false, 0);
+      setStatus(`${label} 取得中...`);
+      return await res.arrayBuffer();
+    }
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    showProgress(!!total, 0);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (total) {
+        const pct = Math.min(100, Math.round(received / total * 100));
+        showProgress(true, pct);
+        setStatus(`${label} 取得中... ${pct}%`);
+      } else {
+        showProgress(false, 0);
+        setStatus(`${label} 取得中... ${(received/1024).toFixed(1)} KB`);
+      }
+    }
+    const buf = new Uint8Array(received);
+    let p = 0;
+    for (const c of chunks) { buf.set(c, p); p += c.length; }
+    return buf.buffer;
+  }
+
+  async function fetchAozora(url, label = '') {
     const cacheKey = CACHE_PREFIX + url;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try { return JSON.parse(cached); } catch (e) {}
     }
-    const tryFetch = async (u) => {
-      const res = await fetch(u);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const buf = await res.arrayBuffer();
+    const decode = (buf) => {
       let text;
       try {
         text = new TextDecoder('shift_jis').decode(buf);
@@ -238,10 +319,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let parsed;
     try {
-      parsed = parseAozoraHtml(await tryFetch(url));
+      const buf = await fetchWithProgress(url, label);
+      parsed = parseAozoraHtml(decode(buf));
     } catch (e1) {
+      setStatus(`${label} プロキシ経由で再試行...`);
       const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-      parsed = parseAozoraHtml(await tryFetch(proxied));
+      const buf = await fetchWithProgress(proxied, label);
+      parsed = parseAozoraHtml(decode(buf));
     }
     try { localStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch (e) {}
     return parsed;
@@ -250,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ══ クイックパネル ══
   function openQuickPanel() {
     qpSpeed.value = speedRange.value;
-    qpSpeedVal.textContent = speedRange.value + 'ms';
+    qpSpeedVal.textContent = `${speedRange.value} word/s`;
     qpFontSize.value = fontSizeRange.value;
     qpFontSizeVal.textContent = fontSizeRange.value + 'px';
     syncUnitButtons();
@@ -264,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ══ イベント ══
 
-  // ── ソースタブ（イベント委譲で確実に） ──
+  // ソースタブ
   document.querySelector('.source-tabs').addEventListener('click', (e) => {
     const t = e.target.closest('.source-tab');
     if (!t) return;
@@ -275,12 +359,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pane) pane.classList.add('active');
   });
 
-  // ── 表示単位ボタン（設定画面・クイック両方を委譲で処理） ──
+  // 表示単位ボタン（委譲）
   document.addEventListener('click', (e) => {
-    const b = e.target.closest('.unit-btn');
+    const b = e.target.closest('[data-unit]');
     if (!b) return;
     if (!b.closest('#unitBtns') && !b.closest('#qpUnitBtns')) return;
     changeUnit(b.dataset.unit);
+  });
+
+  // テーマボタン（委譲）
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-theme]');
+    if (!b || b.tagName !== 'BUTTON') return;
+    if (!b.closest('#themeBtns') && !b.closest('#qpThemeBtns')) return;
+    applyTheme(b.dataset.theme);
   });
 
   // プリセット選択
@@ -288,15 +380,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const i = parseInt(presetSel.value, 10);
     if (isNaN(i) || !AOZORA_PRESETS[i]) return;
     const p = AOZORA_PRESETS[i];
-    setStatus(`「${p.title}」を取得中...`);
     presetSel.disabled = true;
+    setStatus(`「${p.title}」を取得中...`);
     try {
-      const { title, text } = await fetchAozora(p.url);
+      const { title, text } = await fetchAozora(p.url, `「${p.title}」`);
       loadText(text, title || p.title);
     } catch (e) {
       setStatus(`取得失敗: ${e.message}`);
     } finally {
       presetSel.disabled = false;
+      hideProgress();
     }
   });
 
@@ -305,14 +398,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = urlInput.value.trim();
     if (!url) { setStatus('URLを入力してください'); return; }
     loadUrlBtn.disabled = true;
-    setStatus('取得中...');
     try {
-      const { title, text } = await fetchAozora(url);
+      const { title, text } = await fetchAozora(url, '');
       loadText(text, title);
     } catch (e) {
       setStatus(`取得失敗: ${e.message}`);
     } finally {
       loadUrlBtn.disabled = false;
+      hideProgress();
     }
   });
 
@@ -325,36 +418,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // スライダー（設定画面）
   speedRange.addEventListener('input', () => {
-    speedVal.textContent = speedRange.value + 'ms';
+    speedVal.textContent = `${speedRange.value} word/s`;
   });
   fontSizeRange.addEventListener('input', () => {
     fontSizeVal.textContent = fontSizeRange.value + 'px';
     document.documentElement.style.setProperty('--word-size', fontSizeRange.value + 'px');
   });
 
-  // ── リーダー操作 ──
+  // リーダー操作
   goReadBtn.addEventListener('click', () => {
     if (!tokens.length) { setStatus('テキストを選択してください'); return; }
     showReader();
   });
   backBtn.addEventListener('click', showSettings);
   playBtn.addEventListener('click', () => { playing ? pause() : play(); });
-  back3Btn.addEventListener('click', () => {
-    const wp = playing; pause();
-    idx = Math.max(0, idx - 4);
-    updateView();
-    if (wp) play();
+  back3Btn.addEventListener('click', () => moveTo(idx - 3));
+  prevBtn.addEventListener('click', () => moveTo(idx - 1));
+  nextBtn.addEventListener('click', () => moveTo(idx + 1));
+
+  // シークバー
+  seekBar.addEventListener('mousedown', () => { wasPlayingBeforeSeek = playing; pause(); });
+  seekBar.addEventListener('touchstart', () => { wasPlayingBeforeSeek = playing; pause(); }, { passive: true });
+  seekBar.addEventListener('input', () => {
+    idx = parseInt(seekBar.value, 10);
+    if (idx >= tokens.length) idx = tokens.length;
+    finishMsg.style.display = idx >= tokens.length ? 'block' : 'none';
+    wordEl.style.display    = idx >= tokens.length ? 'none' : '';
+    if (idx < tokens.length) {
+      wordEl.textContent = tokens[idx];
+      readerInfo.textContent = `${idx + 1}/${tokens.length}`;
+    } else {
+      readerInfo.textContent = `${tokens.length}/${tokens.length}`;
+    }
+  });
+  seekBar.addEventListener('change', () => {
+    if (wasPlayingBeforeSeek && idx < tokens.length) play();
+    wasPlayingBeforeSeek = false;
   });
 
-  // ── クイック設定 ──
+  // クイック設定
   menuBtn.addEventListener('click', openQuickPanel);
   qpClose.addEventListener('click', closeQuickPanel);
   qpBackdrop.addEventListener('click', closeQuickPanel);
 
   qpSpeed.addEventListener('input', () => {
     speedRange.value = qpSpeed.value;
-    speedVal.textContent = qpSpeed.value + 'ms';
-    qpSpeedVal.textContent = qpSpeed.value + 'ms';
+    speedVal.textContent = `${qpSpeed.value} word/s`;
+    qpSpeedVal.textContent = `${qpSpeed.value} word/s`;
   });
   qpFontSize.addEventListener('input', () => {
     fontSizeRange.value = qpFontSize.value;
@@ -365,19 +475,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // キーボード
   document.addEventListener('keydown', e => {
-    if (!readerScreen.classList.contains('active')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
-    else if (e.code === 'ArrowLeft') {
-      const wp = playing; pause();
-      idx = Math.max(0, idx - 4); updateView();
-      if (wp) play();
+    if (!readerScreen.classList.contains('active')) return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      playing ? pause() : play();
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      moveTo(idx - 1);
+    } else if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      moveTo(idx + 1);
     } else if (e.code === 'Escape') {
       closeQuickPanel();
     }
   });
 
   // ── 初期化 ──
+  speedVal.textContent = `${speedRange.value} word/s`;
+  fontSizeVal.textContent = fontSizeRange.value + 'px';
   if (AOZORA_PRESETS && AOZORA_PRESETS.length) {
     presetSel.value = '0';
     presetSel.dispatchEvent(new Event('change'));
