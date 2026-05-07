@@ -18,19 +18,14 @@
     background: var(--bg); color: var(--fg);
     font-family: "Yu Gothic UI", "游ゴシック UI", "Hiragino Kaku Gothic ProN", sans-serif;
     min-height: 100vh; display: flex; flex-direction: column;
+    overflow-x: hidden;
   }
 
-  /* ── 画面切り替え ── */
   .screen { display: none; flex-direction: column; flex: 1; }
   .screen.active { display: flex; }
 
-  /* ══════════════════════════════
-     設定画面
-  ══════════════════════════════ */
-  #settingsScreen {
-    padding: 0 0 40px;
-    overflow-y: auto;
-  }
+  /* ══ 設定画面 ══ */
+  #settingsScreen { padding: 0 0 40px; overflow-y: auto; }
   .s-header {
     padding: 20px 24px 16px;
     border-bottom: 1px solid var(--border);
@@ -38,7 +33,6 @@
   }
   .s-header h1 { font-size: 18px; font-weight: 500; color: var(--accent); }
   .s-section { padding: 20px 24px 0; }
-  .s-section + .s-section { padding-top: 24px; }
   .s-label {
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
     color: var(--sub); margin-bottom: 10px;
@@ -47,13 +41,14 @@
     background: var(--card); border-radius: 8px; padding: 16px;
     border: 1px solid var(--border);
   }
-  select, input[type="text"] {
+  select, input[type="text"], textarea {
     width: 100%; padding: 10px 12px;
     background: #1a1a1a; color: var(--fg);
     border: 1px solid #444; border-radius: 6px;
     font-size: 14px; font-family: inherit;
   }
   select { cursor: pointer; }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
   .url-row { display: flex; gap: 8px; margin-top: 10px; }
   .url-row input { flex: 1; }
   .btn-sm {
@@ -62,20 +57,17 @@
     font-size: 13px; cursor: pointer; white-space: nowrap; font-family: inherit;
   }
   .btn-sm:hover { background: #444; }
+  .btn-sm.primary { background: var(--accent); color: #222; border-color: var(--accent); font-weight: 600; }
 
-  /* スライダー行 */
-  .slider-row {
-    display: flex; align-items: center; gap: 12px; margin-top: 0;
-  }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
   .slider-row + .slider-row { margin-top: 14px; }
   .slider-row label { font-size: 13px; color: var(--sub); min-width: 72px; }
   .slider-row input[type="range"] { flex: 1; accent-color: var(--accent); }
   .slider-val {
     font-size: 14px; color: var(--accent); font-weight: 600;
-    min-width: 52px; text-align: right;
+    min-width: 56px; text-align: right;
   }
 
-  /* 表示単位 */
   .unit-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .unit-btn {
     padding: 8px 16px; background: #1a1a1a; color: var(--sub);
@@ -87,41 +79,55 @@
     border-color: var(--accent); font-weight: 600;
   }
 
-  /* 読むボタン */
   .start-btn {
     display: block; margin: 28px 24px 0;
     padding: 16px; background: var(--accent); color: #222;
     border: none; border-radius: 10px;
     font-size: 16px; font-weight: 700; font-family: inherit;
     cursor: pointer; text-align: center; width: calc(100% - 48px);
-    transition: background 0.15s;
   }
   .start-btn:hover { background: #ffd866; }
-  .start-btn:disabled { background: #555; color: #999; cursor: not-allowed; }
+  .start-btn.resume { background: #88c0e0; }
 
   #settingsStatus {
     font-size: 12px; color: var(--sub); padding: 10px 24px 0; min-height: 20px;
   }
+  .source-tabs {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .source-tab {
+    flex: 1; padding: 10px; background: none; border: none; color: var(--sub);
+    font-size: 13px; cursor: pointer; font-family: inherit;
+    border-bottom: 2px solid transparent;
+  }
+  .source-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .source-pane { display: none; }
+  .source-pane.active { display: block; }
 
-  /* ══════════════════════════════
-     表示画面（リーダー）
-  ══════════════════════════════ */
-  #readerScreen { background: var(--bg); }
+  /* ══ リーダー画面 ══ */
+  #readerScreen { background: var(--bg); position: relative; }
 
   .r-topbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 20px; border-bottom: 1px solid var(--border);
+    gap: 12px;
   }
-  .back-btn {
-    background: none; border: 1px solid var(--border); color: var(--sub);
-    padding: 6px 14px; border-radius: 20px; font-size: 13px;
-    cursor: pointer; font-family: inherit;
+  .icon-btn {
+    background: none; border: 1px solid var(--border); color: var(--fg);
+    width: 36px; height: 36px; border-radius: 8px;
+    cursor: pointer; font-size: 16px; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
-  .back-btn:hover { border-color: var(--fg); color: var(--fg); }
-  #readerTitle { font-size: 13px; color: var(--sub); max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #readerInfo { font-size: 12px; color: var(--sub); }
+  .icon-btn:hover { background: #2a2a2a; }
+  #readerTitle {
+    flex: 1; font-size: 13px; color: var(--sub);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-align: center;
+  }
+  #readerInfo { font-size: 12px; color: var(--sub); flex-shrink: 0; min-width: 80px; text-align: right; }
 
-  /* 単語表示エリア */
   .word-stage {
     flex: 1; display: flex; align-items: center; justify-content: center;
     padding: 20px;
@@ -133,16 +139,9 @@
     text-align: center;
   }
 
-  /* プログレスバー */
-  #progressWrap {
-    height: 3px; background: #2a2a2a; margin: 0 20px;
-  }
-  #progressBar {
-    height: 100%; width: 0; background: var(--accent);
-    transition: width 0.15s linear; border-radius: 2px;
-  }
+  #progressWrap { height: 3px; background: #2a2a2a; margin: 0 20px; }
+  #progressBar { height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
 
-  /* ボタンエリア */
   .r-controls {
     display: flex; align-items: center; justify-content: center;
     gap: 20px; padding: 28px 20px 36px;
@@ -152,8 +151,7 @@
     background: #2a2a2a; border: 1px solid var(--border); color: var(--fg);
     font-size: 11px; font-family: inherit; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 2px; transition: background 0.15s;
-    line-height: 1.3;
+    gap: 2px;
   }
   .btn-back3:hover { background: #383838; }
   .btn-back3 .back3-icon { font-size: 18px; }
@@ -162,15 +160,42 @@
     background: var(--accent); border: none; color: #222;
     font-size: 28px; font-family: inherit; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s; box-shadow: 0 4px 20px rgba(255,204,68,0.3);
+    box-shadow: 0 4px 20px rgba(255,204,68,0.3);
   }
   .btn-play:hover { background: #ffd866; }
-  .btn-play.playing { font-size: 24px; }
-  /* 終了表示 */
+
   #finishMsg {
     display: none; text-align: center; padding: 0 24px;
-    font-size: 16px; color: var(--sub);
+    font-size: 16px; color: var(--sub); line-height: 1.6;
   }
+
+  /* ══ クイック設定オーバーレイ ══ */
+  #quickPanel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 320px; max-width: 88vw;
+    background: #1f1f1f; border-left: 1px solid var(--border);
+    transform: translateX(100%); transition: transform 0.25s ease;
+    z-index: 100; padding: 20px; overflow-y: auto;
+    box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+  }
+  #quickPanel.open { transform: translateX(0); }
+  #quickPanelBackdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 99; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  #quickPanelBackdrop.open { opacity: 1; pointer-events: auto; }
+  .qp-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .qp-header h2 { font-size: 15px; font-weight: 500; color: var(--accent); }
+  .qp-close {
+    background: none; border: none; color: var(--sub);
+    font-size: 22px; cursor: pointer; padding: 0; width: 32px; height: 32px;
+  }
+  .qp-section { margin-bottom: 22px; }
+  .qp-section .s-label { margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -184,10 +209,28 @@
   <div class="s-section">
     <div class="s-label">テキストを選ぶ</div>
     <div class="s-card">
-      <select id="preset"></select>
-      <div class="url-row">
-        <input type="text" id="urlInput" placeholder="または青空文庫のURLを入力">
-        <button class="btn-sm" id="loadUrlBtn">取得</button>
+      <div class="source-tabs">
+        <button class="source-tab active" data-source="preset">プリセット</button>
+        <button class="source-tab" data-source="url">URL</button>
+        <button class="source-tab" data-source="text">直接入力</button>
+      </div>
+
+      <div class="source-pane active" data-pane="preset">
+        <select id="preset"></select>
+      </div>
+
+      <div class="source-pane" data-pane="url">
+        <div class="url-row">
+          <input type="text" id="urlInput" placeholder="青空文庫のXHTMLページURL">
+          <button class="btn-sm" id="loadUrlBtn">取得</button>
+        </div>
+      </div>
+
+      <div class="source-pane" data-pane="text">
+        <textarea id="textInput" placeholder="ここに日本語の文章を貼り付け（小説、記事、何でもOK）"></textarea>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="btn-sm" id="loadTextBtn">この文章で読み込む</button>
+        </div>
       </div>
     </div>
   </div>
@@ -202,7 +245,7 @@
       </div>
       <div class="slider-row">
         <label>文字サイズ</label>
-        <input type="range" id="fontSize" min="32" max="200" step="4" value="96">
+        <input type="range" id="fontSize" min="32" max="240" step="4" value="96">
         <span class="slider-val" id="fontSizeVal">96px</span>
       </div>
     </div>
@@ -211,7 +254,7 @@
   <div class="s-section">
     <div class="s-label">表示単位</div>
     <div class="s-card">
-      <div class="unit-btns">
+      <div class="unit-btns" id="unitBtns">
         <button class="unit-btn active" data-unit="word">単語</button>
         <button class="unit-btn" data-unit="char">1文字</button>
         <button class="unit-btn" data-unit="phrase">文節</button>
@@ -223,18 +266,19 @@
   <button class="start-btn" id="goReadBtn">読む ▶</button>
 </div>
 
-<!-- ══ 表示画面（リーダー） ══ -->
+<!-- ══ リーダー画面 ══ -->
 <div id="readerScreen" class="screen">
   <div class="r-topbar">
-    <button class="back-btn" id="backBtn">← 設定</button>
+    <button class="icon-btn" id="backBtn" title="設定画面へ">←</button>
     <div id="readerTitle"></div>
     <div id="readerInfo"></div>
+    <button class="icon-btn" id="menuBtn" title="クイック設定">☰</button>
   </div>
 
   <div class="word-stage">
     <div id="word">　</div>
+    <div id="finishMsg">── 終了 ──<br><small>左下「3つ前」または▶で再読、← で設定画面</small></div>
   </div>
-  <div id="finishMsg">── 終了 ──<br><small>設定画面に戻って最初から読めます</small></div>
 
   <div id="progressWrap"><div id="progressBar"></div></div>
 
@@ -244,6 +288,40 @@
       <span>3つ前</span>
     </button>
     <button class="btn-play" id="playBtn">▶</button>
+  </div>
+</div>
+
+<!-- ══ クイック設定パネル ══ -->
+<div id="quickPanelBackdrop"></div>
+<div id="quickPanel">
+  <div class="qp-header">
+    <h2>クイック設定</h2>
+    <button class="qp-close" id="qpClose">×</button>
+  </div>
+
+  <div class="qp-section">
+    <div class="s-label">速度</div>
+    <div class="slider-row">
+      <input type="range" id="qpSpeed" min="40" max="1000" step="10" value="200">
+      <span class="slider-val" id="qpSpeedVal">200ms</span>
+    </div>
+  </div>
+
+  <div class="qp-section">
+    <div class="s-label">文字サイズ</div>
+    <div class="slider-row">
+      <input type="range" id="qpFontSize" min="32" max="240" step="4" value="96">
+      <span class="slider-val" id="qpFontSizeVal">96px</span>
+    </div>
+  </div>
+
+  <div class="qp-section">
+    <div class="s-label">表示単位（位置を保持して切替）</div>
+    <div class="unit-btns" id="qpUnitBtns">
+      <button class="unit-btn active" data-unit="word">単語</button>
+      <button class="unit-btn" data-unit="char">1文字</button>
+      <button class="unit-btn" data-unit="phrase">文節</button>
+    </div>
   </div>
 </div>
 
