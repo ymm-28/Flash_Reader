@@ -1,4 +1,4 @@
-(() => {
+document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
 
   // 画面
@@ -30,8 +30,14 @@
   // 状態
   let tokens = [], idx = 0, timer = null, playing = false;
   let currentUnit = 'word';
+  let currentText = '';
+  let currentTitle = '';
 
   // ── プリセット読み込み ──
+  if (typeof AOZORA_PRESETS === 'undefined' || !AOZORA_PRESETS.length) {
+    setStatus('プリセットの読み込みに失敗しました');
+    return;
+  }
   AOZORA_PRESETS.forEach((p, i) => {
     const opt = document.createElement('option');
     opt.value = i; opt.textContent = p.title;
@@ -48,7 +54,6 @@
       return text.split(/(?<=[。、！？!?「」『』])/g)
         .map(s => s.trim()).filter(Boolean);
     }
-    // word: Intl.Segmenter
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
       const seg = new Intl.Segmenter('ja', { granularity: 'word' });
       const out = [];
@@ -58,31 +63,33 @@
       }
       return out;
     }
-    return Array.from(text); // フォールバック
-  }
-
-  // ── テキスト設定 ──
-  function loadText(text, title) {
-    tokens = tokenize(text, currentUnit);
-    idx = 0;
-    readerTitle.textContent = title || '';
-    goReadBtn.disabled = tokens.length === 0;
-    if (tokens.length > 0) {
-      setStatus(`${tokens.length} 語を読み込みました`);
-    }
+    return Array.from(text);
   }
 
   function setStatus(msg) { statusEl.textContent = msg; }
 
+  // ── テキスト設定 ──
+  function loadText(text, title) {
+    currentText = text;
+    currentTitle = title || '';
+    tokens = tokenize(text, currentUnit);
+    idx = 0;
+    readerTitle.textContent = currentTitle;
+    setStatus(`「${currentTitle}」を読み込みました（${tokens.length} 語）`);
+  }
+
   // ── 画面切り替え ──
   function showReader() {
-    if (!tokens.length) return;
+    if (!tokens.length) {
+      setStatus('テキストが読み込まれていません');
+      return;
+    }
     settingsScreen.classList.remove('active');
     readerScreen.classList.add('active');
-    // フォントサイズ反映
     document.documentElement.style.setProperty('--word-size', fontSizeRange.value + 'px');
     finishMsg.style.display = 'none';
     wordEl.style.display = '';
+    idx = 0;
     updateView();
   }
 
@@ -95,7 +102,7 @@
   // ── 表示更新 ──
   function updateView() {
     const done = idx >= tokens.length;
-    wordEl.style.display   = done ? 'none' : '';
+    wordEl.style.display    = done ? 'none' : '';
     finishMsg.style.display = done ? 'block' : 'none';
     if (done) {
       progressBar.style.width = '100%';
@@ -117,10 +124,9 @@
 
   function play() {
     if (!tokens.length) return;
-    if (idx >= tokens.length) { idx = 0; }
+    if (idx >= tokens.length) idx = 0;
     playing = true;
     playBtn.textContent = '⏸';
-    playBtn.classList.add('playing');
     finishMsg.style.display = 'none';
     wordEl.style.display = '';
     tick();
@@ -130,12 +136,11 @@
     playing = false;
     if (timer) { clearTimeout(timer); timer = null; }
     playBtn.textContent = '▶';
-    playBtn.classList.remove('playing');
   }
 
   function stop() {
     pause();
-    updateView(); // 終了表示
+    updateView();
   }
 
   // ── 青空文庫パース ──
@@ -162,33 +167,33 @@
       try {
         text = new TextDecoder('shift_jis').decode(buf);
         if (!text.includes('<')) text = new TextDecoder('utf-8').decode(buf);
-      } catch { text = new TextDecoder('utf-8').decode(buf); }
+      } catch (e) {
+        text = new TextDecoder('utf-8').decode(buf);
+      }
       return text;
     };
     try {
       return parseAozoraHtml(await tryFetch(url));
-    } catch {
+    } catch (e1) {
       setStatus('プロキシ経由で再試行...');
       try {
         const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
         return parseAozoraHtml(await tryFetch(proxied));
-      } catch (e) {
-        throw new Error('取得失敗。プリセットをお試しください（' + e.message + '）');
+      } catch (e2) {
+        throw new Error('取得失敗。プリセットをお試しください');
       }
     }
   }
 
   // ══ イベント ══
 
-  // プリセット選択
   presetSel.addEventListener('change', () => {
-    const i = presetSel.value;
-    if (i === '') return;
+    const i = parseInt(presetSel.value, 10);
+    if (isNaN(i)) return;
     const p = AOZORA_PRESETS[i];
     loadText(p.text, p.title);
   });
 
-  // URL取得
   loadUrlBtn.addEventListener('click', async () => {
     const url = urlInput.value.trim();
     if (!url) { setStatus('URLを入力してください'); return; }
@@ -203,12 +208,10 @@
     }
   });
 
-  // 速度スライダー
   speedRange.addEventListener('input', () => {
     speedVal.textContent = speedRange.value + 'ms';
   });
 
-  // 文字サイズスライダー
   fontSizeRange.addEventListener('input', () => {
     fontSizeVal.textContent = fontSizeRange.value + 'px';
     document.documentElement.style.setProperty('--word-size', fontSizeRange.value + 'px');
@@ -220,39 +223,37 @@
       unitBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentUnit = btn.dataset.unit;
-      // 再分割（テキストが読み込まれていれば）
-      const sel = presetSel.value;
-      if (sel !== '') {
-        const p = AOZORA_PRESETS[sel];
-        loadText(p.text, p.title);
+      // 現在のテキストを再分割
+      if (currentText) {
+        tokens = tokenize(currentText, currentUnit);
+        idx = 0;
+        setStatus(`「${currentTitle}」を再分割（${tokens.length} 語）`);
       }
     });
   });
 
-  // 「読む」ボタン
   goReadBtn.addEventListener('click', () => {
-    idx = 0;
+    if (!tokens.length) {
+      setStatus('テキストを選択してください');
+      return;
+    }
     showReader();
   });
 
-  // 「設定に戻る」ボタン
   backBtn.addEventListener('click', showSettings);
 
-  // 再生/一時停止 トグル
   playBtn.addEventListener('click', () => {
     if (playing) pause(); else play();
   });
 
-  // 3つ前に戻る
   back3Btn.addEventListener('click', () => {
     const wasPlaying = playing;
     pause();
-    idx = Math.max(0, idx - 4); // 表示済み+1 分を補正して3つ前
+    idx = Math.max(0, idx - 4);
     updateView();
     if (wasPlaying) play();
   });
 
-  // キーボード（リーダー画面のみ）
   document.addEventListener('keydown', e => {
     if (!readerScreen.classList.contains('active')) return;
     if (e.code === 'Space') { e.preventDefault(); if (playing) pause(); else play(); }
@@ -261,18 +262,13 @@
       idx = Math.max(0, idx - 4); updateView();
       if (wp) play();
     }
-    else if (e.code === 'ArrowUp') {
-      speedRange.value = Math.max(40, parseInt(speedRange.value) - 20);
-      speedVal.textContent = speedRange.value + 'ms';
-    }
-    else if (e.code === 'ArrowDown') {
-      speedRange.value = Math.min(1000, parseInt(speedRange.value) + 20);
-      speedVal.textContent = speedRange.value + 'ms';
-    }
   });
 
-  // 初期状態
+  // ── 初期化: 最初のプリセットを自動選択 ──
+  presetSel.value = '0';
+  loadText(AOZORA_PRESETS[0].text, AOZORA_PRESETS[0].title);
+
   if (!('Segmenter' in (window.Intl || {}))) {
-    setStatus('※ このブラウザはIntl.Segmenter非対応のため文字単位で動作します');
+    setStatus('※ ブラウザがIntl.Segmenter非対応のため文字単位で動作します');
   }
-})();
+});
