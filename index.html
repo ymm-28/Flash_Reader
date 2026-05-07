@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>青空フラッシュ暗読</title>
+<style>
+  :root { --bg:#1a1a1a; --fg:#f0f0f0; --accent:#ffcc44; --sub:#888; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg);
+    font-family: "Yu Mincho", "游明朝", "Hiragino Mincho ProN", serif;
+    display: flex; flex-direction: column;
+  }
+  header { padding: 12px 20px; border-bottom: 1px solid #333; }
+  h1 { margin: 0; font-size: 18px; font-weight: normal; color: var(--accent); }
+  .controls {
+    padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 12px;
+    align-items: center; border-bottom: 1px solid #333; background: #222;
+  }
+  .controls label { font-size: 13px; color: var(--sub); }
+  input[type="text"] {
+    flex: 1 1 320px; min-width: 200px;
+    padding: 8px 10px; background: #111; color: var(--fg);
+    border: 1px solid #444; border-radius: 4px; font-size: 13px;
+  }
+  select, button {
+    padding: 8px 12px; background: #333; color: var(--fg);
+    border: 1px solid #555; border-radius: 4px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: #444; }
+  button.primary { background: var(--accent); color: #222; border-color: var(--accent); font-weight: bold; }
+  button.primary:hover { background: #ffd866; }
+  input[type="range"] { width: 160px; }
+  #speedVal { color: var(--accent); min-width: 60px; display: inline-block; }
+  #status { font-size: 12px; color: var(--sub); padding: 4px 20px; }
+  .stage {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    position: relative; padding: 20px; text-align: center; user-select: none;
+  }
+  #word {
+    font-size: clamp(48px, 14vw, 180px); font-weight: 500;
+    line-height: 1.2; letter-spacing: 0.02em;
+    transition: opacity 0.05s linear;
+  }
+  #progress {
+    position: absolute; bottom: 12px; left: 20px; right: 20px;
+    height: 3px; background: #333; border-radius: 2px; overflow: hidden;
+  }
+  #progressBar { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+  #info {
+    position: absolute; top: 12px; right: 20px;
+    font-size: 12px; color: var(--sub);
+  }
+  #title {
+    position: absolute; top: 12px; left: 20px;
+    font-size: 13px; color: var(--sub);
+  }
+  .hint { font-size: 12px; color: var(--sub); padding: 0 20px 8px; }
+</style>
+</head>
+<body>
+<header><h1>青空フラッシュ暗読</h1></header>
+
+<div class="controls">
+  <label>プリセット:</label>
+  <select id="preset">
+    <option value="">-- 選択 --</option>
+  </select>
+  <input type="text" id="urlInput" placeholder="または青空文庫のURL（XHTMLページ）を貼り付け">
+  <button id="loadUrlBtn">URLから取得</button>
+</div>
+
+<div class="controls">
+  <label>速度: <span id="speedVal">200ms</span></label>
+  <input type="range" id="speed" min="40" max="1000" step="10" value="200">
+  <label>表示単位:</label>
+  <select id="unit">
+    <option value="word">単語</option>
+    <option value="char">1文字</option>
+    <option value="phrase">文節（句読点区切り）</option>
+  </select>
+  <button id="startBtn" class="primary">▶ 開始</button>
+  <button id="pauseBtn">⏸ 一時停止</button>
+  <button id="resetBtn">⟲ リセット</button>
+</div>
+
+<div class="hint">スペース: 一時停止/再開　← →: 1つ戻る/進む　↑ ↓: 速度調整</div>
+<div id="status"></div>
+
+<div class="stage">
+  <div id="title"></div>
+  <div id="info"></div>
+  <div id="word">準備完了</div>
+  <div id="progress"><div id="progressBar"></div></div>
+</div>
+
+<script src="presets.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
