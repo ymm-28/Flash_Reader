@@ -15,11 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const speedVal     = $('speedVal');
   const fontSizeRange = $('fontSize');
   const fontSizeVal  = $('fontSizeVal');
-  const unitBtns     = document.querySelectorAll('#unitBtns .unit-btn');
   const goReadBtn    = $('goReadBtn');
   const statusEl     = $('settingsStatus');
-  const sourceTabs   = document.querySelectorAll('.source-tab');
-  const sourcePanes  = document.querySelectorAll('.source-pane');
 
   // リーダー画面要素
   const backBtn      = $('backBtn');
@@ -40,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const qpSpeedVal    = $('qpSpeedVal');
   const qpFontSize    = $('qpFontSize');
   const qpFontSizeVal = $('qpFontSizeVal');
-  const qpUnitBtns    = document.querySelectorAll('#qpUnitBtns .unit-btn');
 
   // 状態
   let tokens = [], idx = 0, timer = null, playing = false;
@@ -49,16 +45,18 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTitle = '';
   const CACHE_PREFIX = 'aozora_cache_v1:';
 
-  // ── プリセットoptions生成 ──
+  function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
+
+  // ── プリセットoption生成 ──
   if (typeof AOZORA_PRESETS === 'undefined' || !AOZORA_PRESETS.length) {
-    setStatus('プリセットの読み込み失敗');
-    return;
+    setStatus('プリセットの読み込みに失敗しました');
+  } else {
+    AOZORA_PRESETS.forEach((p, i) => {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = p.title;
+      presetSel.appendChild(opt);
+    });
   }
-  AOZORA_PRESETS.forEach((p, i) => {
-    const opt = document.createElement('option');
-    opt.value = i; opt.textContent = p.title;
-    presetSel.appendChild(opt);
-  });
 
   // ── 単語分割 ──
   function tokenize(text, mode) {
@@ -67,8 +65,20 @@ document.addEventListener('DOMContentLoaded', () => {
       return Array.from(text).filter(c => c.trim() !== '');
     }
     if (mode === 'phrase') {
-      return text.split(/(?<=[。、！？!?])/g)
-        .map(s => s.trim()).filter(Boolean);
+      // 句読点で分割（lookbehind未対応の古いブラウザでも動く形に）
+      const out = [];
+      let buf = '';
+      for (const ch of text) {
+        buf += ch;
+        if ('。、！？!?'.includes(ch)) {
+          const t = buf.trim();
+          if (t) out.push(t);
+          buf = '';
+        }
+      }
+      const t = buf.trim();
+      if (t) out.push(t);
+      return out;
     }
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
       const seg = new Intl.Segmenter('ja', { granularity: 'word' });
@@ -82,18 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(text);
   }
 
-  function setStatus(msg) { statusEl.textContent = msg; }
-
-  // 現在のtokens内idxに対応する元テキストの文字位置を返す
-  function tokenIdxToCharPos(targetIdx) {
+  // 位置保持用ヘルパ
+  function tokenIdxToCharPos(i) {
     let pos = 0;
-    for (let i = 0; i < targetIdx && i < tokens.length; i++) {
-      pos += tokens[i].length;
-    }
+    for (let k = 0; k < i && k < tokens.length; k++) pos += tokens[k].length;
     return pos;
   }
-
-  // 文字位置を新しいtokensのidxに変換
   function charPosToTokenIdx(charPos, newTokens) {
     let pos = 0;
     for (let i = 0; i < newTokens.length; i++) {
@@ -110,34 +114,31 @@ document.addEventListener('DOMContentLoaded', () => {
     tokens = tokenize(text, currentUnit);
     idx = 0;
     readerTitle.textContent = currentTitle;
-    setStatus(`「${currentTitle}」読み込み完了（${tokens.length} ${currentUnit === 'phrase' ? '文' : '語'}）`);
+    setStatus(`「${currentTitle}」を読み込みました（${tokens.length} ${currentUnit === 'phrase' ? '文' : '語'}）`);
     updateGoBtn();
   }
 
-  // ── 単位変更（位置を保持） ──
   function changeUnit(newUnit) {
-    if (newUnit === currentUnit || !currentText) {
+    if (!newUnit || newUnit === currentUnit) return;
+    if (currentText) {
+      const charPos = tokenIdxToCharPos(idx);
       currentUnit = newUnit;
-      syncUnitButtons();
-      return;
+      tokens = tokenize(currentText, currentUnit);
+      idx = charPosToTokenIdx(charPos, tokens);
+    } else {
+      currentUnit = newUnit;
     }
-    const charPos = tokenIdxToCharPos(idx);
-    currentUnit = newUnit;
-    tokens = tokenize(currentText, currentUnit);
-    idx = charPosToTokenIdx(charPos, tokens);
     syncUnitButtons();
-    if (readerScreen.classList.contains('active')) {
-      updateView();
-    }
+    if (readerScreen.classList.contains('active')) updateView();
+    updateGoBtn();
   }
 
   function syncUnitButtons() {
-    [...unitBtns, ...qpUnitBtns].forEach(b => {
+    document.querySelectorAll('.unit-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.unit === currentUnit);
     });
   }
 
-  // ── 読むボタン状態 ──
   function updateGoBtn() {
     if (idx > 0 && idx < tokens.length) {
       goReadBtn.textContent = `続きから読む（${idx + 1}/${tokens.length}）▶`;
@@ -158,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
     wordEl.style.display = '';
     updateView();
   }
-
   function showSettings() {
     pause();
     closeQuickPanel();
@@ -167,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateGoBtn();
   }
 
-  // ── 表示更新 ──
   function updateView() {
     const done = idx >= tokens.length;
     wordEl.style.display    = done ? 'none' : '';
@@ -182,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     progressBar.style.width = ((idx + 1) / tokens.length * 100) + '%';
   }
 
-  // ── 再生 ──
   function tick() {
     if (idx >= tokens.length) { stop(); return; }
     updateView();
@@ -266,20 +264,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ══ イベント ══
 
-  // ソースタブ
-  sourceTabs.forEach(t => {
-    t.addEventListener('click', () => {
-      sourceTabs.forEach(x => x.classList.remove('active'));
-      sourcePanes.forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      document.querySelector(`.source-pane[data-pane="${t.dataset.source}"]`).classList.add('active');
-    });
+  // ── ソースタブ（イベント委譲で確実に） ──
+  document.querySelector('.source-tabs').addEventListener('click', (e) => {
+    const t = e.target.closest('.source-tab');
+    if (!t) return;
+    document.querySelectorAll('.source-tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.source-pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const pane = document.querySelector(`.source-pane[data-pane="${t.dataset.source}"]`);
+    if (pane) pane.classList.add('active');
   });
 
-  // プリセット選択（URLフェッチ）
+  // ── 表示単位ボタン（設定画面・クイック両方を委譲で処理） ──
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.unit-btn');
+    if (!b) return;
+    if (!b.closest('#unitBtns') && !b.closest('#qpUnitBtns')) return;
+    changeUnit(b.dataset.unit);
+  });
+
+  // プリセット選択
   presetSel.addEventListener('change', async () => {
     const i = parseInt(presetSel.value, 10);
-    if (isNaN(i)) return;
+    if (isNaN(i) || !AOZORA_PRESETS[i]) return;
     const p = AOZORA_PRESETS[i];
     setStatus(`「${p.title}」を取得中...`);
     presetSel.disabled = true;
@@ -309,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 直接入力テキストの読み込み
+  // 直接入力
   loadTextBtn.addEventListener('click', () => {
     const t = textInput.value.trim();
     if (!t) { setStatus('文章を入力してください'); return; }
@@ -319,19 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // スライダー（設定画面）
   speedRange.addEventListener('input', () => {
     speedVal.textContent = speedRange.value + 'ms';
-    qpSpeed.value = speedRange.value;
-    qpSpeedVal.textContent = speedRange.value + 'ms';
   });
   fontSizeRange.addEventListener('input', () => {
     fontSizeVal.textContent = fontSizeRange.value + 'px';
-    qpFontSize.value = fontSizeRange.value;
-    qpFontSizeVal.textContent = fontSizeRange.value + 'px';
     document.documentElement.style.setProperty('--word-size', fontSizeRange.value + 'px');
-  });
-
-  // ユニットボタン（設定画面）
-  unitBtns.forEach(btn => {
-    btn.addEventListener('click', () => changeUnit(btn.dataset.unit));
   });
 
   // ── リーダー操作 ──
@@ -357,16 +355,12 @@ document.addEventListener('DOMContentLoaded', () => {
     speedRange.value = qpSpeed.value;
     speedVal.textContent = qpSpeed.value + 'ms';
     qpSpeedVal.textContent = qpSpeed.value + 'ms';
-    // 再生中なら次のtickから新速度が適用される
   });
   qpFontSize.addEventListener('input', () => {
     fontSizeRange.value = qpFontSize.value;
     fontSizeVal.textContent = qpFontSize.value + 'px';
     qpFontSizeVal.textContent = qpFontSize.value + 'px';
     document.documentElement.style.setProperty('--word-size', qpFontSize.value + 'px');
-  });
-  qpUnitBtns.forEach(btn => {
-    btn.addEventListener('click', () => changeUnit(btn.dataset.unit));
   });
 
   // キーボード
@@ -384,10 +378,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── 初期化 ──
-  presetSel.value = '0';
-  presetSel.dispatchEvent(new Event('change'));
-
+  if (AOZORA_PRESETS && AOZORA_PRESETS.length) {
+    presetSel.value = '0';
+    presetSel.dispatchEvent(new Event('change'));
+  }
   if (!('Segmenter' in (window.Intl || {}))) {
-    setStatus('※ ブラウザがIntl.Segmenter非対応のため文字単位のみ動作');
+    setStatus('※ ブラウザがIntl.Segmenter非対応のため文字単位で動作します');
   }
 });

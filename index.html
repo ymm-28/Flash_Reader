@@ -14,14 +14,14 @@
     --border: #333;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
   body {
     background: var(--bg); color: var(--fg);
     font-family: "Yu Gothic UI", "游ゴシック UI", "Hiragino Kaku Gothic ProN", sans-serif;
-    min-height: 100vh; display: flex; flex-direction: column;
     overflow-x: hidden;
   }
 
-  .screen { display: none; flex-direction: column; flex: 1; }
+  .screen { display: none; flex-direction: column; height: 100%; }
   .screen.active { display: flex; }
 
   /* ══ 設定画面 ══ */
@@ -29,7 +29,6 @@
   .s-header {
     padding: 20px 24px 16px;
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px;
   }
   .s-header h1 { font-size: 18px; font-weight: 500; color: var(--accent); }
   .s-section { padding: 20px 24px 0; }
@@ -49,7 +48,7 @@
   }
   select { cursor: pointer; }
   textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
-  .url-row { display: flex; gap: 8px; margin-top: 10px; }
+  .url-row { display: flex; gap: 8px; margin-top: 0; }
   .url-row input { flex: 1; }
   .btn-sm {
     padding: 10px 14px; background: #333; color: var(--fg);
@@ -57,7 +56,6 @@
     font-size: 13px; cursor: pointer; white-space: nowrap; font-family: inherit;
   }
   .btn-sm:hover { background: #444; }
-  .btn-sm.primary { background: var(--accent); color: #222; border-color: var(--accent); font-weight: 600; }
 
   .slider-row { display: flex; align-items: center; gap: 12px; }
   .slider-row + .slider-row { margin-top: 14px; }
@@ -72,7 +70,7 @@
   .unit-btn {
     padding: 8px 16px; background: #1a1a1a; color: var(--sub);
     border: 1px solid var(--border); border-radius: 20px;
-    font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.15s;
+    font-size: 13px; cursor: pointer; font-family: inherit;
   }
   .unit-btn.active {
     background: var(--accent); color: #222;
@@ -92,15 +90,18 @@
   #settingsStatus {
     font-size: 12px; color: var(--sub); padding: 10px 24px 0; min-height: 20px;
   }
+
+  /* ソースタブ */
   .source-tabs {
-    display: flex; gap: 0; border-bottom: 1px solid var(--border);
-    margin-bottom: 12px;
+    display: flex; border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
   }
   .source-tab {
-    flex: 1; padding: 10px; background: none; border: none; color: var(--sub);
+    flex: 1; padding: 10px; background: transparent; border: none; color: var(--sub);
     font-size: 13px; cursor: pointer; font-family: inherit;
     border-bottom: 2px solid transparent;
   }
+  .source-tab:hover { color: var(--fg); }
   .source-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   .source-pane { display: none; }
   .source-pane.active { display: block; }
@@ -110,27 +111,28 @@
 
   .r-topbar {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 20px; border-bottom: 1px solid var(--border);
-    gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--border); gap: 12px;
+    flex-shrink: 0;
   }
   .icon-btn {
-    background: none; border: 1px solid var(--border); color: var(--fg);
-    width: 36px; height: 36px; border-radius: 8px;
-    cursor: pointer; font-size: 16px; font-family: inherit;
+    background: transparent; border: 1px solid var(--border); color: var(--fg);
+    width: 40px; height: 40px; border-radius: 8px;
+    cursor: pointer; font-size: 18px; font-family: inherit;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
   .icon-btn:hover { background: #2a2a2a; }
+  .icon-btn:active { background: #333; }
   #readerTitle {
     flex: 1; font-size: 13px; color: var(--sub);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     text-align: center;
   }
-  #readerInfo { font-size: 12px; color: var(--sub); flex-shrink: 0; min-width: 80px; text-align: right; }
+  #readerInfo { font-size: 12px; color: var(--sub); flex-shrink: 0; min-width: 70px; text-align: right; }
 
   .word-stage {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    padding: 20px;
+    padding: 20px; min-height: 0;
   }
   #word {
     font-family: "Yu Mincho", "游明朝", "Hiragino Mincho ProN", serif;
@@ -139,12 +141,12 @@
     text-align: center;
   }
 
-  #progressWrap { height: 3px; background: #2a2a2a; margin: 0 20px; }
+  #progressWrap { height: 3px; background: #2a2a2a; margin: 0 20px; flex-shrink: 0; }
   #progressBar { height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
 
   .r-controls {
     display: flex; align-items: center; justify-content: center;
-    gap: 20px; padding: 28px 20px 36px;
+    gap: 20px; padding: 28px 20px 36px; flex-shrink: 0;
   }
   .btn-back3 {
     width: 72px; height: 72px; border-radius: 50%;
@@ -169,31 +171,34 @@
     font-size: 16px; color: var(--sub); line-height: 1.6;
   }
 
-  /* ══ クイック設定オーバーレイ ══ */
+  /* ══ クイック設定パネル（display切替） ══ */
+  #quickPanelBackdrop {
+    display: none;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+  }
+  #quickPanelBackdrop.open { display: block; }
+
   #quickPanel {
+    display: none;
     position: fixed; top: 0; right: 0; bottom: 0;
     width: 320px; max-width: 88vw;
     background: #1f1f1f; border-left: 1px solid var(--border);
-    transform: translateX(100%); transition: transform 0.25s ease;
     z-index: 100; padding: 20px; overflow-y: auto;
     box-shadow: -8px 0 24px rgba(0,0,0,0.4);
   }
-  #quickPanel.open { transform: translateX(0); }
-  #quickPanelBackdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    z-index: 99; opacity: 0; pointer-events: none;
-    transition: opacity 0.2s;
-  }
-  #quickPanelBackdrop.open { opacity: 1; pointer-events: auto; }
+  #quickPanel.open { display: block; }
+
   .qp-header {
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 16px;
   }
   .qp-header h2 { font-size: 15px; font-weight: 500; color: var(--accent); }
   .qp-close {
-    background: none; border: none; color: var(--sub);
-    font-size: 22px; cursor: pointer; padding: 0; width: 32px; height: 32px;
+    background: transparent; border: none; color: var(--sub);
+    font-size: 26px; cursor: pointer; padding: 0; width: 36px; height: 36px;
+    line-height: 1;
   }
+  .qp-close:hover { color: var(--fg); }
   .qp-section { margin-bottom: 22px; }
   .qp-section .s-label { margin-bottom: 8px; }
 </style>
@@ -210,9 +215,9 @@
     <div class="s-label">テキストを選ぶ</div>
     <div class="s-card">
       <div class="source-tabs">
-        <button class="source-tab active" data-source="preset">プリセット</button>
-        <button class="source-tab" data-source="url">URL</button>
-        <button class="source-tab" data-source="text">直接入力</button>
+        <button type="button" class="source-tab active" data-source="preset">プリセット</button>
+        <button type="button" class="source-tab" data-source="url">URL</button>
+        <button type="button" class="source-tab" data-source="text">直接入力</button>
       </div>
 
       <div class="source-pane active" data-pane="preset">
@@ -221,15 +226,15 @@
 
       <div class="source-pane" data-pane="url">
         <div class="url-row">
-          <input type="text" id="urlInput" placeholder="青空文庫のXHTMLページURL">
-          <button class="btn-sm" id="loadUrlBtn">取得</button>
+          <input type="text" id="urlInput" placeholder="青空文庫XHTMLページのURL">
+          <button type="button" class="btn-sm" id="loadUrlBtn">取得</button>
         </div>
       </div>
 
       <div class="source-pane" data-pane="text">
         <textarea id="textInput" placeholder="ここに日本語の文章を貼り付け（小説、記事、何でもOK）"></textarea>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <button class="btn-sm" id="loadTextBtn">この文章で読み込む</button>
+        <div style="margin-top:8px;">
+          <button type="button" class="btn-sm" id="loadTextBtn">この文章で読み込む</button>
         </div>
       </div>
     </div>
@@ -255,39 +260,39 @@
     <div class="s-label">表示単位</div>
     <div class="s-card">
       <div class="unit-btns" id="unitBtns">
-        <button class="unit-btn active" data-unit="word">単語</button>
-        <button class="unit-btn" data-unit="char">1文字</button>
-        <button class="unit-btn" data-unit="phrase">文節</button>
+        <button type="button" class="unit-btn active" data-unit="word">単語</button>
+        <button type="button" class="unit-btn" data-unit="char">1文字</button>
+        <button type="button" class="unit-btn" data-unit="phrase">文節</button>
       </div>
     </div>
   </div>
 
   <div id="settingsStatus"></div>
-  <button class="start-btn" id="goReadBtn">読む ▶</button>
+  <button type="button" class="start-btn" id="goReadBtn">読む ▶</button>
 </div>
 
 <!-- ══ リーダー画面 ══ -->
 <div id="readerScreen" class="screen">
   <div class="r-topbar">
-    <button class="icon-btn" id="backBtn" title="設定画面へ">←</button>
+    <button type="button" class="icon-btn" id="backBtn" title="設定画面へ">←</button>
     <div id="readerTitle"></div>
     <div id="readerInfo"></div>
-    <button class="icon-btn" id="menuBtn" title="クイック設定">☰</button>
+    <button type="button" class="icon-btn" id="menuBtn" title="クイック設定">☰</button>
   </div>
 
   <div class="word-stage">
     <div id="word">　</div>
-    <div id="finishMsg">── 終了 ──<br><small>左下「3つ前」または▶で再読、← で設定画面</small></div>
+    <div id="finishMsg">── 終了 ──<br><small>「3つ前」または▶で再読、← で設定画面</small></div>
   </div>
 
   <div id="progressWrap"><div id="progressBar"></div></div>
 
   <div class="r-controls">
-    <button class="btn-back3" id="back3Btn">
+    <button type="button" class="btn-back3" id="back3Btn">
       <span class="back3-icon">↩</span>
       <span>3つ前</span>
     </button>
-    <button class="btn-play" id="playBtn">▶</button>
+    <button type="button" class="btn-play" id="playBtn">▶</button>
   </div>
 </div>
 
@@ -296,7 +301,7 @@
 <div id="quickPanel">
   <div class="qp-header">
     <h2>クイック設定</h2>
-    <button class="qp-close" id="qpClose">×</button>
+    <button type="button" class="qp-close" id="qpClose">×</button>
   </div>
 
   <div class="qp-section">
@@ -316,16 +321,16 @@
   </div>
 
   <div class="qp-section">
-    <div class="s-label">表示単位（位置を保持して切替）</div>
+    <div class="s-label">表示単位（位置を保持）</div>
     <div class="unit-btns" id="qpUnitBtns">
-      <button class="unit-btn active" data-unit="word">単語</button>
-      <button class="unit-btn" data-unit="char">1文字</button>
-      <button class="unit-btn" data-unit="phrase">文節</button>
+      <button type="button" class="unit-btn active" data-unit="word">単語</button>
+      <button type="button" class="unit-btn" data-unit="char">1文字</button>
+      <button type="button" class="unit-btn" data-unit="phrase">文節</button>
     </div>
   </div>
 </div>
 
-<script src="presets.js"></script>
-<script src="app.js"></script>
+<script src="presets.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
