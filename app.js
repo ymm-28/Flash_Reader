@@ -1,32 +1,54 @@
 (() => {
   const $ = id => document.getElementById(id);
-  const presetSel = $('preset'), urlInput = $('urlInput'), loadUrlBtn = $('loadUrlBtn');
-  const speedRange = $('speed'), speedVal = $('speedVal'), unitSel = $('unit');
-  const startBtn = $('startBtn'), pauseBtn = $('pauseBtn'), resetBtn = $('resetBtn');
-  const wordEl = $('word'), titleEl = $('title'), infoEl = $('info');
-  const progressBar = $('progressBar'), statusEl = $('status');
 
-  let tokens = [], idx = 0, timer = null, playing = false, currentTitle = '';
+  // 画面
+  const settingsScreen = $('settingsScreen');
+  const readerScreen   = $('readerScreen');
 
-  // プリセット読み込み
+  // 設定画面
+  const presetSel    = $('preset');
+  const urlInput     = $('urlInput');
+  const loadUrlBtn   = $('loadUrlBtn');
+  const speedRange   = $('speed');
+  const speedVal     = $('speedVal');
+  const fontSizeRange = $('fontSize');
+  const fontSizeVal  = $('fontSizeVal');
+  const unitBtns     = document.querySelectorAll('.unit-btn');
+  const goReadBtn    = $('goReadBtn');
+  const statusEl     = $('settingsStatus');
+
+  // 表示画面
+  const backBtn      = $('backBtn');
+  const readerTitle  = $('readerTitle');
+  const readerInfo   = $('readerInfo');
+  const wordEl       = $('word');
+  const progressBar  = $('progressBar');
+  const playBtn      = $('playBtn');
+  const back3Btn     = $('back3Btn');
+  const finishMsg    = $('finishMsg');
+
+  // 状態
+  let tokens = [], idx = 0, timer = null, playing = false;
+  let currentUnit = 'word';
+
+  // ── プリセット読み込み ──
   AOZORA_PRESETS.forEach((p, i) => {
     const opt = document.createElement('option');
     opt.value = i; opt.textContent = p.title;
     presetSel.appendChild(opt);
   });
 
-  // 単語分割（Intl.Segmenterは現代ブラウザで日本語対応）
+  // ── 単語分割 ──
   function tokenize(text, mode) {
     text = text.replace(/\s+/g, ' ').trim();
     if (mode === 'char') {
-      return Array.from(text).filter(c => c !== ' ');
+      return Array.from(text).filter(c => c.trim() !== '');
     }
     if (mode === 'phrase') {
-      // 句読点・記号で区切る
-      return text.split(/(?<=[。、！？!?「」『』,.])/g)
+      return text.split(/(?<=[。、！？!?「」『』])/g)
         .map(s => s.trim()).filter(Boolean);
     }
-    // word mode
+    // word: Intl.Segmenter
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
       const seg = new Intl.Segmenter('ja', { granularity: 'word' });
       const out = [];
@@ -36,85 +58,95 @@
       }
       return out;
     }
-    // フォールバック: 文字単位
-    return Array.from(text);
+    return Array.from(text); // フォールバック
+  }
+
+  // ── テキスト設定 ──
+  function loadText(text, title) {
+    tokens = tokenize(text, currentUnit);
+    idx = 0;
+    readerTitle.textContent = title || '';
+    goReadBtn.disabled = tokens.length === 0;
+    if (tokens.length > 0) {
+      setStatus(`${tokens.length} 語を読み込みました`);
+    }
   }
 
   function setStatus(msg) { statusEl.textContent = msg; }
 
-  function loadText(text, title) {
-    currentTitle = title || '';
-    titleEl.textContent = currentTitle;
-    tokens = tokenize(text, unitSel.value);
-    idx = 0;
+  // ── 画面切り替え ──
+  function showReader() {
+    if (!tokens.length) return;
+    settingsScreen.classList.remove('active');
+    readerScreen.classList.add('active');
+    // フォントサイズ反映
+    document.documentElement.style.setProperty('--word-size', fontSizeRange.value + 'px');
+    finishMsg.style.display = 'none';
+    wordEl.style.display = '';
     updateView();
-    setStatus(`読み込み完了: ${tokens.length} トークン`);
-    wordEl.textContent = '▶ 開始ボタンを押してください';
   }
 
+  function showSettings() {
+    pause();
+    readerScreen.classList.remove('active');
+    settingsScreen.classList.add('active');
+  }
+
+  // ── 表示更新 ──
   function updateView() {
-    if (!tokens.length) return;
-    if (idx >= tokens.length) {
-      wordEl.textContent = '── 終了 ──';
+    const done = idx >= tokens.length;
+    wordEl.style.display   = done ? 'none' : '';
+    finishMsg.style.display = done ? 'block' : 'none';
+    if (done) {
       progressBar.style.width = '100%';
-      infoEl.textContent = `${tokens.length}/${tokens.length}`;
+      readerInfo.textContent = '';
       return;
     }
     wordEl.textContent = tokens[idx];
-    infoEl.textContent = `${idx + 1}/${tokens.length}`;
+    readerInfo.textContent = `${idx + 1}/${tokens.length}`;
     progressBar.style.width = ((idx + 1) / tokens.length * 100) + '%';
   }
 
+  // ── 再生 ──
   function tick() {
-    if (idx >= tokens.length) {
-      stop();
-      return;
-    }
+    if (idx >= tokens.length) { stop(); return; }
     updateView();
     idx++;
     timer = setTimeout(tick, parseInt(speedRange.value, 10));
   }
 
   function play() {
-    if (!tokens.length) { setStatus('まずテキストを読み込んでください'); return; }
-    if (idx >= tokens.length) idx = 0;
+    if (!tokens.length) return;
+    if (idx >= tokens.length) { idx = 0; }
     playing = true;
-    startBtn.textContent = '▶ 再生中';
+    playBtn.textContent = '⏸';
+    playBtn.classList.add('playing');
+    finishMsg.style.display = 'none';
+    wordEl.style.display = '';
     tick();
   }
 
   function pause() {
     playing = false;
     if (timer) { clearTimeout(timer); timer = null; }
-    startBtn.textContent = '▶ 開始';
+    playBtn.textContent = '▶';
+    playBtn.classList.remove('playing');
   }
 
   function stop() {
     pause();
-    startBtn.textContent = '▶ 開始';
+    updateView(); // 終了表示
   }
 
-  function reset() {
-    pause();
-    idx = 0;
-    updateView();
-    if (tokens.length) wordEl.textContent = '▶ 開始ボタンを押してください';
-  }
-
-  // 青空文庫HTMLのパース（XHTML本文を抽出）
+  // ── 青空文庫パース ──
   function parseAozoraHtml(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    // タイトル
     const titleNode = doc.querySelector('h1.title') || doc.querySelector('title');
     const title = titleNode ? titleNode.textContent.trim() : '青空文庫';
-    // ルビ除去
     doc.querySelectorAll('rt, rp').forEach(n => n.remove());
-    // 本文: div.main_text が標準
     const main = doc.querySelector('div.main_text') || doc.body;
-    // 注釈などの特殊タグを処理
     main.querySelectorAll('.notes, .bibliographical_information, .after_text').forEach(n => n.remove());
     let text = main.textContent || '';
-    // ［＃〜］形式の注記を除去
     text = text.replace(/［＃[^］]*］/g, '');
     text = text.replace(/　/g, ' ').replace(/[ \t]+/g, ' ');
     return { title, text: text.trim() };
@@ -122,40 +154,33 @@
 
   async function fetchAozora(url) {
     setStatus('取得中...');
-    // 直接fetch（CORSが通れば）→ ダメならプロキシ
     const tryFetch = async (u) => {
       const res = await fetch(u);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const buf = await res.arrayBuffer();
-      // 青空文庫はShift_JISが多い
       let text;
       try {
         text = new TextDecoder('shift_jis').decode(buf);
-        if (!text.includes('<') && !text.includes('青空')) {
-          text = new TextDecoder('utf-8').decode(buf);
-        }
-      } catch (e) {
-        text = new TextDecoder('utf-8').decode(buf);
-      }
+        if (!text.includes('<')) text = new TextDecoder('utf-8').decode(buf);
+      } catch { text = new TextDecoder('utf-8').decode(buf); }
       return text;
     };
-
     try {
-      const html = await tryFetch(url);
-      return parseAozoraHtml(html);
-    } catch (e1) {
-      setStatus('直接取得失敗、プロキシ経由で再試行...');
+      return parseAozoraHtml(await tryFetch(url));
+    } catch {
+      setStatus('プロキシ経由で再試行...');
       try {
         const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-        const html = await tryFetch(proxied);
-        return parseAozoraHtml(html);
-      } catch (e2) {
-        throw new Error('取得失敗: ' + e2.message + '（CORSの制限の可能性。プリセットをご利用ください）');
+        return parseAozoraHtml(await tryFetch(proxied));
+      } catch (e) {
+        throw new Error('取得失敗。プリセットをお試しください（' + e.message + '）');
       }
     }
   }
 
-  // イベント
+  // ══ イベント ══
+
+  // プリセット選択
   presetSel.addEventListener('change', () => {
     const i = presetSel.value;
     if (i === '') return;
@@ -163,6 +188,7 @@
     loadText(p.text, p.title);
   });
 
+  // URL取得
   loadUrlBtn.addEventListener('click', async () => {
     const url = urlInput.value.trim();
     if (!url) { setStatus('URLを入力してください'); return; }
@@ -177,34 +203,63 @@
     }
   });
 
+  // 速度スライダー
   speedRange.addEventListener('input', () => {
     speedVal.textContent = speedRange.value + 'ms';
   });
 
-  unitSel.addEventListener('change', () => {
-    // 同じテキストで再分割
-    const sel = presetSel.value;
-    if (sel !== '') {
-      const p = AOZORA_PRESETS[sel];
-      loadText(p.text, p.title);
-    }
+  // 文字サイズスライダー
+  fontSizeRange.addEventListener('input', () => {
+    fontSizeVal.textContent = fontSizeRange.value + 'px';
+    document.documentElement.style.setProperty('--word-size', fontSizeRange.value + 'px');
   });
 
-  startBtn.addEventListener('click', () => {
+  // 表示単位ボタン
+  unitBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      unitBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentUnit = btn.dataset.unit;
+      // 再分割（テキストが読み込まれていれば）
+      const sel = presetSel.value;
+      if (sel !== '') {
+        const p = AOZORA_PRESETS[sel];
+        loadText(p.text, p.title);
+      }
+    });
+  });
+
+  // 「読む」ボタン
+  goReadBtn.addEventListener('click', () => {
+    idx = 0;
+    showReader();
+  });
+
+  // 「設定に戻る」ボタン
+  backBtn.addEventListener('click', showSettings);
+
+  // 再生/一時停止 トグル
+  playBtn.addEventListener('click', () => {
     if (playing) pause(); else play();
   });
-  pauseBtn.addEventListener('click', pause);
-  resetBtn.addEventListener('click', reset);
 
-  // キーボードショートカット
+  // 3つ前に戻る
+  back3Btn.addEventListener('click', () => {
+    const wasPlaying = playing;
+    pause();
+    idx = Math.max(0, idx - 4); // 表示済み+1 分を補正して3つ前
+    updateView();
+    if (wasPlaying) play();
+  });
+
+  // キーボード（リーダー画面のみ）
   document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return;
+    if (!readerScreen.classList.contains('active')) return;
     if (e.code === 'Space') { e.preventDefault(); if (playing) pause(); else play(); }
     else if (e.code === 'ArrowLeft') {
-      pause(); idx = Math.max(0, idx - 2); updateView(); idx++;
-    }
-    else if (e.code === 'ArrowRight') {
-      pause(); updateView(); idx = Math.min(tokens.length, idx + 1);
+      const wp = playing; pause();
+      idx = Math.max(0, idx - 4); updateView();
+      if (wp) play();
     }
     else if (e.code === 'ArrowUp') {
       speedRange.value = Math.max(40, parseInt(speedRange.value) - 20);
@@ -216,10 +271,8 @@
     }
   });
 
-  // 初期メッセージ
+  // 初期状態
   if (!('Segmenter' in (window.Intl || {}))) {
-    setStatus('※ このブラウザはIntl.Segmenterに非対応のため、文字単位での表示になります');
-  } else {
-    setStatus('プリセットを選ぶか、青空文庫のXHTMLページのURLを入力してください');
+    setStatus('※ このブラウザはIntl.Segmenter非対応のため文字単位で動作します');
   }
 })();
